@@ -21,14 +21,14 @@ This project is based on [max7219_matrix_clock3](https://github.com/tehniq3/max7
 - CP2102 driver
 
 ### Steps
-1.Download and install [CP2102 driver](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers).
-2.Download and install [Arduino IDE](https://www.arduino.cc/en/software).
-3.Add ESP8266 support for the Arduino IDE
-4.Select Board as "NodeMCU" in Arduino IDE
-5.Open the latest release of .ino file by Arduino IDE
-6.Connect the NodeMCU Board (ESP8266) to your computer using a micro-usb cable.
-7.Check the COM port it uses and select it in Arduino IDE
-8.Flash the codes on your NodeMCU.
+1. Download and install [CP2102 driver](https://www. silabs. com/developers/usb-to-uart-bridge-vcp-drivers). 
+2. Download and install [Arduino IDE](https://www. arduino. cc/en/software). 
+3. Add ESP8266 support for the Arduino IDE
+4. Select Board as "NodeMCU" in Arduino IDE
+5. Open the latest release of . ino file by Arduino IDE
+6. Connect the NodeMCU Board (ESP8266) to your computer using a micro-usb cable. 
+7. Check the COM port it uses and select it in Arduino IDE
+8. Flash the codes on your NodeMCU. 
 
 ## Usage
 
