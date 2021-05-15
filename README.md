@@ -33,5 +33,7 @@ This project is based on [max7219_matrix_clock3](https://github.com/tehniq3/max7
 ## Usage
 
 ## Todo
+- UTC/Time Zone support
+
 
 ## License
