@@ -308,6 +308,10 @@ unsigned short const font2[96][9] = { { 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
 		{ 0x07, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x00 }			// 0x7f, DEL
 };
 //**************************************************************************************************
+//declare char2Arr
+void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9] = font1 );
+void char22Arr(unsigned short ch, int PosX, short PosY);
+//**************************************************************************************************
 //自动配网
 bool autoConfig()
 {
@@ -748,7 +752,7 @@ void refresh_display()			//take info into LEDarr
 	}
 }
 //**************************************************************************************************
-void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9] = font1 ) {			//characters into arr
+void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9]) {			//characters into arr
 	int i, j, k, l, m, o1, o2, o3, o4;			//in LEDarr
 	PosX++;
 	k = ch - 32;			//ASCII position in font
@@ -779,7 +783,7 @@ void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const type
 }
 // char2Arr for small font (font2)
 void char22Arr(unsigned short ch, int PosX, short PosY) {	
-	char2Arr(ch, PosX, PosY, font2)
+	char2Arr(ch, PosX, PosY, font2);
 }
 
 //**************************************************************************************************
@@ -855,7 +859,7 @@ void loop() {
 	while (true) {
 		yield();
 //00:20自动同步，注意此处不能设为00:00；不然需要修改loop()开头处的初始值
-		if ( MEZ.hr_ones_now==0 && MEZ.min_ones_now==20 && MEZ.sec_ones_now==0 )			//syncronisize RTC every day 00:20:00
+		if ( MEZ.hr_whole==0 && MEZ.min_whole==20 && MEZ.sec_whole==0 )			//syncronisize RTC every day 00:20:00
 		{ 
 			clear_Display();
 			delay(500);
@@ -917,7 +921,7 @@ void loop() {
 			hr_tens_old = hr_tens_now;
 			hr_tens_now = hr_tens;
 			f_tckr1s = false;
-			if (MEZ.sec_ones_now == 45)
+			if (MEZ.sec_whole == 45)
 				f_scroll_x = true;			//scroll switch
 		}			// end 1s
 		if (f_tckr50ms == true) {
@@ -1001,9 +1005,9 @@ void loop() {
 			char2Arr(' ', d_PosX+5, 0); 
 			
 		   
-			char2Arr(M_arr[MEZ.mon_ones_now - 1][0], d_PosX, 0);			//month
-			char2Arr(M_arr[MEZ.mon_ones_now - 1][1], d_PosX - 6, 0);
-			char2Arr(M_arr[MEZ.mon_ones_now - 1][2], d_PosX - 12, 0);
+			char2Arr(M_arr[MEZ.mon_whole - 1][0], d_PosX, 0);			//month
+			char2Arr(M_arr[MEZ.mon_whole - 1][1], d_PosX - 6, 0);
+			char2Arr(M_arr[MEZ.mon_whole - 1][2], d_PosX - 12, 0);
 			
 			char2Arr(48 + MEZ.day_tens, d_PosX - 18, 0);			//day
 			char2Arr(48 + MEZ.day_ones, d_PosX - 24, 0);
