@@ -1,4 +1,4 @@
-/* MatrixClock V3.1
+/* MatrixClock V3.2
  original from https:			//github.com/schreibfaul1/ESP8266-LED-Matrix-Clock
  small changes by Nicu FLORICA (niq_ro) from https:			//github.com/tehniq3/
  and Bogdan ARGATU
@@ -9,9 +9,9 @@ WiFi led to ESP8266
 catode - D3  , anode to 3.3v with a 1k resistor
 */
 /* 
-for disable scrolling calendar, search for "scroll switch", and change true to false.
-for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1 to integer between 0~15, 0 for darkest, 15 for brightest.
-*********************************************************************************************************/
+	for disable scrolling calendar, search for "scroll switch", and change true to false.
+	for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1 to integer between 0~15, 0 for darkest, 15 for brightest.
+*/
 
 //include ----------------------------------------
 #include <SPI.h>
@@ -21,6 +21,9 @@ for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1
 #include <WiFiUdp.h>
 #include <Wire.h>
 #include <time.h>
+#include <RTClib.h>
+
+RTC_DS3231 rtc;
 
 // GPIO define
 #define SDA        4			// Pin sda (I2C)
@@ -29,44 +32,19 @@ for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1
 #define anzMAX     4			// number of led matrix Modules
 //anz means num in German
 
-#define REVERSE_HORIZONTAL			//if you use hardware v2.2 board you need delete this line
-#define REVERSE_VERTICAL			//if you use hardware v2.2 board you need delete this line
+#define REVERSE_HORIZONTAL			//if you use hardware v2.2 board you should delete this line
+#define REVERSE_VERTICAL			//if you use hardware v2.2 board you should delete this line
 
 char ssid[] = "";			// your Wi-FiSSID (name)
 char pass[] = "";			// your Wi-Fi password
 /****************************************/
 // # CONSTANT DEFINE 常量定义
 
-// ## Address Map of RTC DS3231
-const unsigned char DS3231_ADDRESS = 0x68;
-const unsigned char secondREG = 0x00;
-const unsigned char minuteREG = 0x01;
-const unsigned char hourREG = 0x02;
-const unsigned char WDREG = 0x03;			//weekday
-const unsigned char dateREG = 0x04;
-const unsigned char monthREG = 0x05;
-const unsigned char yearREG = 0x06;
-const unsigned char alarm_1_secREG = 0x07;
-const unsigned char alarm_1_minREG = 0x08;
-const unsigned char alarm_1_hrREG = 0x09;
-const unsigned char alarm_1_dateREG = 0x0A;
-const unsigned char alarm_2_minREG = 0x0B;
-const unsigned char alarm_2_hrREG = 0x0C;
-const unsigned char alarm_2_dateREG = 0x0D;
-const unsigned char controlREG = 0x0E;
-const unsigned char statusREG = 0x0F;
-const unsigned char ageoffsetREG = 0x10;
-const unsigned char tempMSBREG = 0x11;
-const unsigned char tempLSBREG = 0x12;
-const unsigned char _24_hour_format = 0;
-const unsigned char _12_hour_format = 1;
-const unsigned char AM = 0;
-const unsigned char PM = 1;
-
 // ## Font/Typeface 字体
 	// 字体-x
 	// Character set 5x8 in an 8x8 matrix, 0.0 is at the top right
 	// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
+	// format: width, row1, row2, row3, ..., row8
 unsigned short const FONT5x8[96][9] = { 
 		{ 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },			// 0x20, Space
 		{ 0x07, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00 },			// 0x21, !
@@ -243,7 +221,7 @@ unsigned short const font1[96][9] = {
 		{ 0x07, 0x06, 0x09, 0x08, 0x1c, 0x08, 0x08, 0x08, 0x00 },			// 0x66, f
 		{ 0x07, 0x00, 0x0e, 0x11, 0x13, 0x0d, 0x01, 0x01, 0x0e },			// 0x67, g
 		{ 0x07, 0x10, 0x10, 0x10, 0x16, 0x19, 0x11, 0x11, 0x00 },			// 0x68, h
-		{ 0x05, 0x00, 0x04, 0x00, 0x0C, 0x04, 0x04, 0x0e, 0x00 },			// 0x69, i
+		{ 0x05, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x07, 0x00 },			// 0x69, i
 		{ 0x07, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x12, 0x0c },			// 0x6a, j
 		{ 0x07, 0x10, 0x10, 0x12, 0x14, 0x18, 0x14, 0x12, 0x00 },			// 0x6b, k
 		{ 0x05, 0x06, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x00 },			// 0x6c, l
@@ -373,8 +351,8 @@ unsigned short const font2[96][9] = {
 /****************************************/
 unsigned short maxPosX = anzMAX * 8 - 1;			//calculated maxposition
 unsigned short LEDarr[anzMAX][8];			//character matrix to display (40*8)
-unsigned short helpArrMAX[anzMAX * 8];			//helperarray for chardecoding
-unsigned short helpArrPos[anzMAX * 8];			//helperarray pos of chardecoding
+unsigned short helpArrMAX[anzMAX * 8];			//helper array for char decoding
+unsigned short helpArrPos[anzMAX * 8];			//helper array pos of char decoding
 unsigned int t_PosX = 0;			//xPosition in Display for time display
 unsigned int d_PosX = 0;			//xPosition in Display for date display
 bool f_tckr1s = false;			//1 second flag
@@ -385,10 +363,10 @@ const char* ntpServerName = "time.nist.gov";
 const int NTP_PACKET_SIZE = 48;			// NTP time stamp is in the first 48 bytes of the message
 byte packetBuffer[NTP_PACKET_SIZE];			// buffer to hold incoming and outgoing packets
 IPAddress timeServerIP;			// time.nist.gov NTP server address
-tm *tt, ttm;
+tm *tt;
 
 
-struct DateTime {
+struct MEZz {
 	unsigned short sec_ones, sec_tens, sec_whole, min_ones, min_tens, min_whole, hr_ones, hr_tens, hr_whole;
 	unsigned short day_ones, day_tens, day_whole, mon_ones, mon_tens, mon_whole, year_ones, year_tens, year_whole, WD;
 } MEZ;
@@ -422,26 +400,26 @@ char WD_arr[7][4] = {
 void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9] = font1 );
 void char22Arr(unsigned short ch, int PosX, short PosY);
 //**************************************************************************************************
-//Auto Config Wi-Fi 自动配网
+// Wi-Fi Config 自动配网
 bool autoConfig()
 {
 	WiFi.begin();			// We start by connecting to a WiFi network
 
 	for (int i = 0; i < 10; i++)
 	{
-	   char2Arr('W', 28, 0);
-	   char2Arr('i', 21, 0);
-	   char2Arr('-', 18, 0);
-	   char2Arr('F', 12, 0);
-	   char2Arr('i', 6, 0);
+		char2Arr('W', 28, 0);
+		char2Arr('i', 21, 0);
+		char2Arr('-', 18, 0);
+		char2Arr('F', 12, 0);
+		char2Arr('i', 6, 0);
 
-	   refresh_display(); 
-	   
-	   if (WiFi.status() == WL_CONNECTED)
-	   {
+		refresh_display(); 
+		
+		if (WiFi.status() == WL_CONNECTED)
+		{
 		  Serial.println("AutoConfig Success");
 		  Serial.printf("SSID:%s\r\n", WiFi.SSID().c_str());
-		  Serial.printf("PSW:%s\r\n", WiFi.psk().c_str());
+		  //Serial.printf("PSW:%s\r\n", WiFi.psk().c_str());
 		  clear_Display();
 		  char2Arr('O', 25, 0);
 		  char2Arr('K', 19, 0);
@@ -456,12 +434,12 @@ bool autoConfig()
 		  Serial.print("Local port: ");
 		  Serial.println(udp.localPort());
 		  return true;
-	   }
-	   else{
+		}
+		else{
 		  Serial.print("AutoConfig Waiting......");
 		  Serial.println(WiFi.status());
 		  delay(1000);
-	   }
+		}
 	}
 	clear_Display();
 	char2Arr('E', 25, 0);
@@ -484,9 +462,9 @@ void smartConfig()
 	WiFi.beginSmartConfig();
 	for (i = 0; i < 30; i++)
 	{
-	   Serial.print(".");
-	   if(WiFi.smartConfigDone())
-	   {
+		Serial.print(".");
+		if(WiFi.smartConfigDone())
+		{
 		  clear_Display();
 		  char2Arr('O', 25, 0);
 		  char2Arr('K', 19, 0);
@@ -507,31 +485,33 @@ void smartConfig()
 		  delay(1000); 
 		  ESP.restart();
 		  break;
-	   }
-	   clear_Display();
-	   char2Arr('S', 29, 0);
-	   char2Arr('-', 23, -1);
-	   char2Arr('c', 17, 0);
-	   char2Arr('o', 12, 0);
-	   char2Arr('n', 6, 0);
-	   refresh_display(); 
-	   delay(1000);
+		}
+		clear_Display();
+		char2Arr('S', 29, 0);
+		char2Arr('-', 23, -1);
+		char2Arr('c', 17, 0);
+		char2Arr('o', 12, 0);
+		char2Arr('n', 6, 0);
+		refresh_display(); 
+		delay(1000);
 	}
 	if (i > 28)
 	{
-	   clear_Display();
-	   char2Arr('R', 25, 0);
-	   char2Arr('T', 19, 0);
-	   char2Arr('C', 12, 0);
-	   char2Arr('!', 6, 0);
-	   refresh_display(); 
-	   delay(1000);
-	   Serial.println("SmartConfig Faild!" );
-	   Serial.println("Clock use RTC!" );
+		clear_Display();
+		char2Arr('R', 25, 0);
+		char2Arr('T', 19, 0);
+		char2Arr('C', 12, 0);
+		char2Arr('!', 6, 0);
+		refresh_display(); 
+		delay(1000);
+		Serial.println("SmartConfig Faild!" );
+		Serial.println("Clock use RTC!" );
 	}
 }
 //**************************************************************************************************
-tm* connectNTP()			//if response from NTP was succesfull return *tm else return a nullpointer
+//Get time from NTP was succesfull, return *tm
+//if failed, return a nullpointer
+tm* connectNTP()
 {
 	WiFi.hostByName(ntpServerName, timeServerIP);
 	Serial.println(timeServerIP);
@@ -585,139 +565,34 @@ tm* connectNTP()			//if response from NTP was succesfull return *tm else return 
 void rtc_init(unsigned char sda, unsigned char scl) 
 {
 	Wire.begin(sda, scl);
-	rtc_Write(controlREG, 0x00);
+	//rtc_Write(controlREG, 0x00);
 }
 //**************************************************************************************************
-// BCD Code
-//**************************************************************************************************
-unsigned char dec2bcd(unsigned char x) {			//value 0...99
-	unsigned char z, e, r;
-	e = x % 10;
-	z = x / 10;
-	z = z << 4;
-	r = e | z;
-	return (r);
-}
-unsigned char bcd2dec(unsigned char x) {			//value 0...99
-	int z, e;
-	e = x & 0x0F;
-	z = x & 0xF0;
-	z = z >> 4;
-	z = z * 10;
-	return (z + e);
-}
-//**************************************************************************************************
-// RTC I2C Code
-//**************************************************************************************************
-unsigned char rtc_Read(unsigned char regaddress) {
-	Wire.beginTransmission(DS3231_ADDRESS);
-	Wire.write(regaddress);
-	Wire.endTransmission();
-	Wire.requestFrom((unsigned char) DS3231_ADDRESS, (unsigned char) 1);
-	return (Wire.read());
-}
-void rtc_Write(unsigned char regaddress, unsigned char value) {
-	Wire.beginTransmission(DS3231_ADDRESS);
-	Wire.write(regaddress);
-	Wire.write(value);
-	Wire.endTransmission();
-}
-//**************************************************************************************************
-unsigned char rtc_second() {
-	return (bcd2dec(rtc_Read(secondREG)));
-}
-unsigned char rtc_minute() {
-	return (bcd2dec(rtc_Read(minuteREG)));
-}
-unsigned char rtc_hour() {
-	return (bcd2dec(rtc_Read(hourREG)));
-}
-unsigned char rtc_weekday() {
-	return (bcd2dec(rtc_Read(WDREG)));
-}
-unsigned char rtc_day() {
-	return (bcd2dec(rtc_Read(dateREG)));
-}
-unsigned char rtc_month() {
-	return (bcd2dec(rtc_Read(monthREG)));
-}
-unsigned char rtc_year() {
-	return (bcd2dec(rtc_Read(yearREG)));
-}
-void rtc_second(unsigned char sec) {
-	rtc_Write(secondREG, (dec2bcd(sec)));
-}
-void rtc_minute(unsigned char min) {
-	rtc_Write(minuteREG, (dec2bcd(min)));
-}
-void rtc_hour(unsigned char hr) {
-	rtc_Write(hourREG, (dec2bcd(hr)));
-}
-void rtc_weekday(unsigned char wd) {
-	rtc_Write(WDREG, (dec2bcd(wd)));
-}
-void rtc_day(unsigned char day) {
-	rtc_Write(dateREG, (dec2bcd(day)));
-}
-void rtc_month(unsigned char mon) {
-	rtc_Write(monthREG, (dec2bcd(mon)));
-}
-void rtc_year(unsigned char year) {
-	rtc_Write(yearREG, (dec2bcd(year)));
-}
-//**************************************************************************************************
-void rtc_set(tm* tt) {
-	rtc_second((unsigned char) tt->tm_sec);
-	rtc_minute((unsigned char) tt->tm_min);
-	rtc_hour((unsigned char) tt->tm_hour);
-	rtc_day((unsigned char) tt->tm_mday);
-	rtc_month((unsigned char) tt->tm_mon + 1);
-	rtc_year((unsigned char) tt->tm_year - 100);
-	if (tt->tm_wday == 0)
-	{
-		rtc_weekday(7);
-	}
-	else
-		rtc_weekday((unsigned char) tt->tm_wday);
-}
-//**************************************************************************************************
-float rtc_temp() {
-	float t = 0.0;
-	unsigned char lowByte = 0;
-	signed char highByte = 0;
-	lowByte = rtc_Read(tempLSBREG);
-	highByte = rtc_Read(tempMSBREG);
-	lowByte >>= 6;
-	lowByte &= 0x03;
-	t = ((float) lowByte);
-	t *= 0.25;
-	t += highByte;
-	return (t);			// return temp value
-}
+
 //**************************************************************************************************
 void rtc2mez() {
  
 	unsigned short Year, Day, Month, WeekDay, Hour, Minute, Second;
-
-	Year = rtc_year();			//年
+	DateTime now = rtc.now();
+	Year = now.year();			//年
 	if (Year > 99)
 		Year = 0;
-	Month = rtc_month();			//月
+	Month = now.month();			//月
 	if (Month > 12)
 		Month = 0;
-	Day = rtc_day();			//天
+	Day = now.day();			//天
 	if (Day > 31)
 		Day = 0;
-	WeekDay = rtc_weekday();			//星期
+	WeekDay = now.dayOfTheWeek();			//星期
 	if (WeekDay == 7)
 		WeekDay = 0;
-	Hour = rtc_hour();			//小时
+	Hour = now.hour();			//小时
 	if (Hour > 23)
 		Hour = 0;
-	Minute = rtc_minute();			//分钟
+	Minute = now.minute();			//分钟
 	if (Minute > 59)
 		Minute = 0;
-	Second = rtc_second();			//秒
+	Second = now.second();			//秒
 	if (Second > 59)
 		Second = 0;
 	
@@ -768,7 +643,8 @@ void max7219_init()			//all MAX7219 init
 }
 //**************************************************************************************************
 //亮度控制
-void max7219_set_brightness(unsigned short br)			//brightness MAX7219
+//MAX7219 brightness control
+void max7219_set_brightness(unsigned short br)
 {
 	unsigned short j;
 	if (br < 16) {
@@ -782,16 +658,18 @@ void max7219_set_brightness(unsigned short br)			//brightness MAX7219
 	}
 }
 //**************************************************************************************************
-void helpArr_init(void)			//helperarray init
+void helpArr_init(void)			//helper array init
 {
 	unsigned short i, j, k;
 	j = 0;
 	k = 0;
-	for (i = 0; i < anzMAX * 8; i++) {
+	for (i = 0; i < anzMAX * 8; i++) 
+	{
 		helpArrPos[i] = (1 << j);			//bitmask
 		helpArrMAX[i] = k;
 		j++;
-		if (j > 7) {
+		if (j > 7) 
+		{
 			j = 0;
 			k++;
 		}
@@ -845,7 +723,8 @@ void refresh_display()			//take info into LEDarr
 	{
 		digitalWrite(CS, LOW);
 		delayMicroseconds(1);
-		for (j = 1; j <= anzMAX; j++) {
+		for (j = 0; j < anzMAX; j++) 
+		{
 			SPI.write(i + 1);			//current row
 			
 #ifdef REVERSE_HORIZONTAL
@@ -853,9 +732,9 @@ void refresh_display()			//take info into LEDarr
 #endif
 
 #ifdef REVERSE_VERTICAL
-			SPI.write(LEDarr[j - 1][7-i]);
+			SPI.write(LEDarr[j][7-i]);
 #else
-			SPI.write(LEDarr[j - 1][i]);
+			SPI.write(LEDarr[j][i]);
 #endif
 
 #ifdef REVERSE_HORIZONTAL
@@ -866,26 +745,29 @@ void refresh_display()			//take info into LEDarr
 	}
 }
 //**************************************************************************************************
-void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9]) {			//characters into arr
-	int i, j, k, l, m, o1, o2, o3, o4;			//in LEDarr
+//characters into arr
+void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9]) 
+{
+	int i, j, k, l, dot, o1, o2, o3, charWidth;			//in LEDarr, o3 is bitmask of current line
 	PosX++;
 	k = ch - 32;			//ASCII position in font
 	if ((k >= 0) && (k < 96))			//character found in font?
 	{
-		o4 = typeface[k][0];			//character width
-		o3 = 1 << (o4 - 2);
-		for (i = 0; i < o4; i++) {
-			if (((PosX - i <= maxPosX) && (PosX - i >= 0))
-					&& ((PosY > -8) && (PosY < 8)))			//within matrix?
+		charWidth = typeface[k][0];			//character width
+		o3 = 1 << (charWidth - 2);
+		for (i = 0; i < charWidth; i++) 
+		{
+			if (((PosX - i <= maxPosX) && (PosX - i >= 0)) && ((PosY > -8) && (PosY < 8)))			//within matrix?
 			{
 				o1 = helpArrPos[PosX - i];
 				o2 = helpArrMAX[PosX - i];
 				for (j = 0; j < 8; j++) {
 					if (((PosY >= 0) && (PosY <= j)) || ((PosY < 0) && (j < PosY + 8)))			//scroll vertical
 					{
-						l = typeface[k][j + 1];
-						m = (l & (o3 >> i));			//e.g. o4=7  0zzzzz0, o4=4  0zz0
-						if (m > 0)
+						l = typeface[k][j + 1];		//get the (j+1)-th line of the character from typeface
+						dot = (l & (o3 >> i));			//e.g. charWidth=7  0zzzzz0, charWidth=4  0zz0
+						//dot : px of (j+1)-th row, (i+1)-th col of the char
+						if (dot > 0)
 							LEDarr[o2][j - PosY] = LEDarr[o2][j - PosY] | (o1);			//set point
 						else
 							LEDarr[o2][j - PosY] = LEDarr[o2][j - PosY] & (~o1);			//clear point
@@ -896,16 +778,19 @@ void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const type
 	}
 }
 // char2Arr for small font (font2)
-void char22Arr(unsigned short ch, int PosX, short PosY) {	
+void char22Arr(unsigned short ch, int PosX, short PosY) 
+{	
 	char2Arr(ch, PosX, PosY, font2);
 }
 
 //**************************************************************************************************
-void timer50ms() {
+void timer50ms() 
+{
 	static unsigned int cnt50ms = 0;
 	f_tckr50ms = true;
 	cnt50ms++;
-	if (cnt50ms == 20) {
+	if (cnt50ms == 20) 
+	{
 		f_tckr1s = true;			// 1 sec
 		cnt50ms = 0;
 	}
@@ -927,28 +812,31 @@ void setup()
 	SPI.begin();
 	helpArr_init();
 	max7219_init();
-	max7219_set_brightness(1);
+	max7219_set_brightness(0);
 	rtc_init(SDA, SCL);
 	clear_Display();
 	refresh_display();			//take info into LEDarr
 	tckr.attach(0.05, timer50ms);			// every 50 msec
-//////////////////////////////////
+/*Internet Config*/
 	if (!autoConfig())
 	{
-	   smartConfig();
+		smartConfig();
 	}
-///////////////////////////////////
+/*****************/
 	tm* tt;
 	tt = connectNTP();
 	if (tt != NULL)
-		rtc_set(tt);
+	{
+		rtc.adjust(DateTime(tt->tm_year - 100, tt->tm_mon + 1, tt->tm_mday, tt->tm_hour, tt->tm_min, tt->tm_sec));
+	}
 	else
 		Serial.println("no timepacket received");
 }
 
 //**************************************************************************************************
 // ## The loop function is called in an endless loop
-void loop() {
+void loop() 
+{
 	unsigned int sec_ones = 0, sec_tens = 0, min_ones = 0, min_tens = 0, hr_ones = 0, hr_tens = 0;
 	unsigned int sec_ones_old = 0, sec_ones_now = 0, sec_tens_old = 0, sec_tens_now = 0;
 	unsigned int min_ones_old = 0, min_ones_now = 0, min_tens_old = 0, min_tens_now = 0;
@@ -974,7 +862,8 @@ void loop() {
 		y2 = 8;
 		y1 = -8;
 	}
-	while (true) {
+	while (true) 
+	{
 		yield();
 //00:20自动同步，注意此处不能设为00:00；不然需要修改loop()开头处的初始值
 		if ( MEZ.hr_whole==0 && MEZ.min_whole==20 && MEZ.sec_whole==0 )			//syncronisize RTC every day 00:20:00
@@ -1039,12 +928,14 @@ void loop() {
 			hr_tens_old = hr_tens_now;
 			hr_tens_now = hr_tens;
 			f_tckr1s = false;
-			if (MEZ.sec_whole == 45)
+			if (MEZ.sec_whole == 45)		//scrolling calender at 45s
 				f_scroll_x = false;			//scroll switch
 		}			// end 1s
-		if (f_tckr50ms == true) {
+		if (f_tckr50ms == true) 
+		{
 			f_tckr50ms = false;
-			if (f_scroll_x == true) {
+			if (f_scroll_x == true) 
+			{
 				t_PosX++;
 				d_PosX++;
 				if (d_PosX == 62)
@@ -1054,18 +945,21 @@ void loop() {
 					d_PosX = -8;
 				}
 			}
-			if (sc1 == 1) {
+			if (sc1 == 1) 
+			{
 				if (updown == 1)
-					y--;
+				{y--;}
 				else
-					y++;
-			   y3 = y;
-			   if (y3 > 0) {
-				y3 = 0;
+				{y++;}
+				y3 = y;
+				if (y3 > 0) 
+				{
+					y3 = 0;
 				}     
-			   char22Arr(48 + sec_ones_now, t_PosX - 27, y3);
-			   char22Arr(48 + sec_ones_old, t_PosX - 27, y + y1);
-				if (y == 0) {
+				char22Arr(48 + sec_ones_now, t_PosX - 27, y3);
+				char22Arr(48 + sec_ones_old, t_PosX - 27, y + y1);
+				if (y == 0) 
+				{
 					sc1 = 0;
 					f_scrollend_y = true;
 				}
@@ -1073,7 +967,8 @@ void loop() {
 			else
 				char22Arr(48 + sec_ones, t_PosX - 27, 0);
 
-			if (sc2 == 1) {
+			if (sc2 == 1) 
+			{
 				char22Arr(48 + sec_tens_now, t_PosX - 23, y3);
 				char22Arr(48 + sec_tens_old, t_PosX - 23, y + y1);
 				if (y == 0)
@@ -1082,7 +977,8 @@ void loop() {
 			else
 			  char22Arr(48 + sec_tens, t_PosX - 23, 0);
 
-			if (sc3 == 1) {
+			if (sc3 == 1) 
+			{
 				char2Arr(48 + min_ones_now, t_PosX - 18, y);
 				char2Arr(48 + min_ones_old, t_PosX - 18, y + y1);
 				if (y == 0)
@@ -1091,38 +987,41 @@ void loop() {
 			else
 				char2Arr(48 + min_ones, t_PosX - 18, 0);
 
-			if (sc4 == 1) {
+			if (sc4 == 1) 
+			{
 				char2Arr(48 + min_tens_now, t_PosX - 13, y);
 				char2Arr(48 + min_tens_old, t_PosX - 13, y + y1);
 				if (y == 0)
 					sc4 = 0;
 			}
 			else
+			{
 				char2Arr(48 + min_tens, t_PosX - 13, 0);
-
-			  char2Arr(':', t_PosX - 10 + x, 0);
-
-			if (sc5 == 1) {
+			}
+			char2Arr(':', t_PosX - 10 + x, 0);
+			
+			if (sc5 == 1) 
+			{
 				char2Arr(48 + hr_ones_now, t_PosX - 4, y);
 				char2Arr(48 + hr_ones_old, t_PosX - 4, y + y1);
 				if (y == 0)
-					sc5 = 0;
+				{sc5 = 0;}
 			}
 			else
-				char2Arr(48 + hr_ones, t_PosX - 4, 0);
+			{char2Arr(48 + hr_ones, t_PosX - 4, 0);}
 
 			if (sc6 == 1) {
 				char2Arr(48 + hr_tens_now, t_PosX + 1, y);
 				char2Arr(48 + hr_tens_old, t_PosX + 1, y + y1);
 				if (y == 0)
-					sc6 = 0;
+				{sc6 = 0;}
 			}
 			else
-				char2Arr(48 + hr_tens, t_PosX + 1, 0);
+			{char2Arr(48 + hr_tens, t_PosX + 1, 0);}
 
 			char2Arr(' ', d_PosX+5, 0); 
 			
-		   
+			
 			char2Arr(M_arr[MEZ.mon_whole - 1][0], d_PosX, 0);			//month
 			char2Arr(M_arr[MEZ.mon_whole - 1][1], d_PosX - 6, 0);
 			char2Arr(M_arr[MEZ.mon_whole - 1][2], d_PosX - 12, 0);
@@ -1135,7 +1034,8 @@ void loop() {
 			char2Arr(WD_arr[MEZ.WD][2], d_PosX - 48, 0);
 
 			refresh_display();			//alle 50ms
-			if (f_scrollend_y == true) {
+			if (f_scrollend_y == true) 
+			{
 				f_scrollend_y = false;
 			}
 		}			//end 50ms
