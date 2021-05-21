@@ -13,6 +13,7 @@ for disable scrolling calendar, search for "scroll switch", and change true to f
 for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1 to integer between 0~15, 0 for darkest, 15 for brightest.
 *********************************************************************************************************/
 
+//include ----------------------------------------
 #include <SPI.h>
 #include <Ticker.h>
 #include <ESP8266WiFi.h>
@@ -34,9 +35,36 @@ for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1
 char ssid[] = "";			// your Wi-FiSSID (name)
 char pass[] = "";			// your Wi-Fi password
 /****************************************/
-//CONSTANT DEFINE 常量定义
+// # CONSTANT DEFINE 常量定义
 
-	// 字体
+// ## Address Map of RTC DS3231
+const unsigned char DS3231_ADDRESS = 0x68;
+const unsigned char secondREG = 0x00;
+const unsigned char minuteREG = 0x01;
+const unsigned char hourREG = 0x02;
+const unsigned char WDREG = 0x03;			//weekday
+const unsigned char dateREG = 0x04;
+const unsigned char monthREG = 0x05;
+const unsigned char yearREG = 0x06;
+const unsigned char alarm_1_secREG = 0x07;
+const unsigned char alarm_1_minREG = 0x08;
+const unsigned char alarm_1_hrREG = 0x09;
+const unsigned char alarm_1_dateREG = 0x0A;
+const unsigned char alarm_2_minREG = 0x0B;
+const unsigned char alarm_2_hrREG = 0x0C;
+const unsigned char alarm_2_dateREG = 0x0D;
+const unsigned char controlREG = 0x0E;
+const unsigned char statusREG = 0x0F;
+const unsigned char ageoffsetREG = 0x10;
+const unsigned char tempMSBREG = 0x11;
+const unsigned char tempLSBREG = 0x12;
+const unsigned char _24_hour_format = 0;
+const unsigned char _12_hour_format = 1;
+const unsigned char AM = 0;
+const unsigned char PM = 1;
+
+// ## Font/Typeface 字体
+	// 字体-x
 	// Character set 5x8 in an 8x8 matrix, 0.0 is at the top right
 	// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
 unsigned short const FONT5x8[96][9] = { 
@@ -113,7 +141,7 @@ unsigned short const FONT5x8[96][9] = {
 		{ 0x07, 0x06, 0x09, 0x08, 0x1c, 0x08, 0x08, 0x08, 0x00 },			// 0x66, f
 		{ 0x07, 0x00, 0x0e, 0x11, 0x13, 0x0d, 0x01, 0x01, 0x0e },			// 0x67, g
 		{ 0x07, 0x10, 0x10, 0x10, 0x16, 0x19, 0x11, 0x11, 0x00 },			// 0x68, h
-		{ 0x05, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x07, 0x00 },			// 0x69, i
+		{ 0x05, 0x00, 0x04, 0x00, 0x0C, 0x04, 0x04, 0x0e, 0x00 },			// 0x69, i
 		{ 0x07, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x12, 0x0c },			// 0x6a, j
 		{ 0x07, 0x10, 0x10, 0x12, 0x14, 0x18, 0x14, 0x12, 0x00 },			// 0x6b, k
 		{ 0x05, 0x06, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x00 },			// 0x6c, l
@@ -138,81 +166,9 @@ unsigned short const FONT5x8[96][9] = {
 		{ 0x07, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x00 }			// 0x7f, DEL
 };
 
-
-/****************************************/
-unsigned short maxPosX = anzMAX * 8 - 1;			//calculated maxposition
-unsigned short LEDarr[anzMAX][8];			//character matrix to display (40*8)
-unsigned short helpArrMAX[anzMAX * 8];			//helperarray for chardecoding
-unsigned short helpArrPos[anzMAX * 8];			//helperarray pos of chardecoding
-unsigned int t_PosX = 0;			//xPosition in Display for time display
-unsigned int d_PosX = 0;			//xPosition in Display for date display
-bool f_tckr1s = false;			//1 second flag
-bool f_tckr50ms = false;			//50 ms flag
-unsigned long epoch = 0;
-unsigned int localPort = 2390;			// local port to listen for UDP packets
-const char* ntpServerName = "time.nist.gov";
-const int NTP_PACKET_SIZE = 48;			// NTP time stamp is in the first 48 bytes of the message
-byte packetBuffer[NTP_PACKET_SIZE];			// buffer to hold incoming and outgoing packets
-IPAddress timeServerIP;			// time.nist.gov NTP server address
-tm *tt, ttm;
-
-//Variables for RTC DS3231
-const unsigned char DS3231_ADDRESS = 0x68;
-const unsigned char secondREG = 0x00;
-const unsigned char minuteREG = 0x01;
-const unsigned char hourREG = 0x02;
-const unsigned char WDREG = 0x03;			//weekday
-const unsigned char dateREG = 0x04;
-const unsigned char monthREG = 0x05;
-const unsigned char yearREG = 0x06;
-const unsigned char alarm_min_1_secREG = 0x07;
-const unsigned char alarm_min_1_minREG = 0x08;
-const unsigned char alarm_min_1_hrREG = 0x09;
-const unsigned char alarm_min_1_dateREG = 0x0A;
-const unsigned char alarm_min_2_minREG = 0x0B;
-const unsigned char alarm_min_2_hrREG = 0x0C;
-const unsigned char alarm_min_2_dateREG = 0x0D;
-const unsigned char controlREG = 0x0E;
-const unsigned char statusREG = 0x0F;
-const unsigned char ageoffsetREG = 0x10;
-const unsigned char tempMSBREG = 0x11;
-const unsigned char tempLSBREG = 0x12;
-const unsigned char _24_hour_format = 0;
-const unsigned char _12_hour_format = 1;
-const unsigned char AM = 0;
-const unsigned char PM = 1;
-
-struct DateTime {
-	unsigned short sec_ones, sec_tens, sec_whole, min_ones, min_tens, min_whole, hr_ones, hr_tens, hr_whole;
-	unsigned short day_ones, day_tens, day_whole, mon_ones, mon_tens, mon_whole, year_ones, year_tens, year_whole, WD;
-} MEZ;
-
-
-// The object for the Ticker
-Ticker tckr;
-// A UDP instance to let us send and receive packets over UDP
-WiFiUDP udp;
-
-
-//Months
-char M_arr[12][3] = {
-  {'0', '1', '-'}, {'0', '2', '-'}, {'0', '3', '-'}, 
-  {'0', '4', '-'}, {'0', '5', '-'}, {'0', '6', '-'}, 
-  {'0', '7', '-'}, {'0', '8', '-'}, {'0', '9', '-'}, 
-  {'1', '0', '-'}, {'1', '1', '-'}, {'1', '2', '-'} };
-//WeekDays
-char WD_arr[7][4] = {
-  {'S', 'U', 'N', ' '}, 
-  {'M', 'O', 'N', ' '}, 
-  {'T', 'U', 'E', ' '}, 
-  {'W', 'E', 'D', ' '}, 
-  {'T', 'H', 'U', ' '}, 
-  {'F', 'R', 'I', ' '}, 
-  {'S', 'A', 'T', ' '} };
-
-// Zeichensatz 5x8 in einer 8x8 Matrix, 0,0 ist rechts oben
-// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
-// 字体1
+	// 字体1
+	// Zeichensatz 5x8 in einer 8x8 Matrix, 0,0 ist rechts oben
+	// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
 unsigned short const font1[96][9] = { 
 		{ 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },			// 0x20, Space
 		{ 0x07, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00 },			// 0x21, !
@@ -287,7 +243,7 @@ unsigned short const font1[96][9] = {
 		{ 0x07, 0x06, 0x09, 0x08, 0x1c, 0x08, 0x08, 0x08, 0x00 },			// 0x66, f
 		{ 0x07, 0x00, 0x0e, 0x11, 0x13, 0x0d, 0x01, 0x01, 0x0e },			// 0x67, g
 		{ 0x07, 0x10, 0x10, 0x10, 0x16, 0x19, 0x11, 0x11, 0x00 },			// 0x68, h
-		{ 0x05, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x07, 0x00 },			// 0x69, i
+		{ 0x05, 0x00, 0x04, 0x00, 0x0C, 0x04, 0x04, 0x0e, 0x00 },			// 0x69, i
 		{ 0x07, 0x00, 0x02, 0x00, 0x06, 0x02, 0x02, 0x12, 0x0c },			// 0x6a, j
 		{ 0x07, 0x10, 0x10, 0x12, 0x14, 0x18, 0x14, 0x12, 0x00 },			// 0x6b, k
 		{ 0x05, 0x06, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x00 },			// 0x6c, l
@@ -312,11 +268,11 @@ unsigned short const font1[96][9] = {
 		{ 0x07, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x00 }			// 0x7f, DEL
 };
 
-// Zeichensatz 5x8 in einer 8x8 Matrix, 0,0 ist rechts oben
-// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
-// 字体2 小字
-unsigned short const font2[96][9] = { { 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00 },			// 0x20, Space
+	// 字体2 小字
+	// Zeichensatz 5x8 in einer 8x8 Matrix, 0,0 ist rechts oben
+	// 在8x8矩阵中，使用5x8的字符, 0,0原点设置在右上角
+unsigned short const font2[96][9] = { 
+		{ 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },			// 0x20, Space
 		{ 0x07, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00 },			// 0x21, !
 		{ 0x07, 0x09, 0x09, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00 },			// 0x22, "
 		{ 0x07, 0x0a, 0x0a, 0x1f, 0x0a, 0x1f, 0x0a, 0x0a, 0x00 },			// 0x23, #
@@ -413,6 +369,54 @@ unsigned short const font2[96][9] = { { 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
 		{ 0x07, 0x08, 0x15, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00 },			// 0x7e, ~
 		{ 0x07, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x00 }			// 0x7f, DEL
 };
+
+/****************************************/
+unsigned short maxPosX = anzMAX * 8 - 1;			//calculated maxposition
+unsigned short LEDarr[anzMAX][8];			//character matrix to display (40*8)
+unsigned short helpArrMAX[anzMAX * 8];			//helperarray for chardecoding
+unsigned short helpArrPos[anzMAX * 8];			//helperarray pos of chardecoding
+unsigned int t_PosX = 0;			//xPosition in Display for time display
+unsigned int d_PosX = 0;			//xPosition in Display for date display
+bool f_tckr1s = false;			//1 second flag
+bool f_tckr50ms = false;			//50 ms flag
+unsigned long epoch = 0;
+unsigned int localPort = 2390;			// local port to listen for UDP packets
+const char* ntpServerName = "time.nist.gov";
+const int NTP_PACKET_SIZE = 48;			// NTP time stamp is in the first 48 bytes of the message
+byte packetBuffer[NTP_PACKET_SIZE];			// buffer to hold incoming and outgoing packets
+IPAddress timeServerIP;			// time.nist.gov NTP server address
+tm *tt, ttm;
+
+
+struct DateTime {
+	unsigned short sec_ones, sec_tens, sec_whole, min_ones, min_tens, min_whole, hr_ones, hr_tens, hr_whole;
+	unsigned short day_ones, day_tens, day_whole, mon_ones, mon_tens, mon_whole, year_ones, year_tens, year_whole, WD;
+} MEZ;
+
+
+// The object for the Ticker
+Ticker tckr;
+// A UDP instance to let us send and receive packets over UDP
+WiFiUDP udp;
+
+
+//Months
+char M_arr[12][3] = {
+  {'0', '1', '-'}, {'0', '2', '-'}, {'0', '3', '-'}, 
+  {'0', '4', '-'}, {'0', '5', '-'}, {'0', '6', '-'}, 
+  {'0', '7', '-'}, {'0', '8', '-'}, {'0', '9', '-'}, 
+  {'1', '0', '-'}, {'1', '1', '-'}, {'1', '2', '-'} };
+//WeekDays
+char WD_arr[7][4] = {
+  {'S', 'U', 'N', ' '}, 
+  {'M', 'O', 'N', ' '}, 
+  {'T', 'U', 'E', ' '}, 
+  {'W', 'E', 'D', ' '}, 
+  {'T', 'H', 'U', ' '}, 
+  {'F', 'R', 'I', ' '}, 
+  {'S', 'A', 'T', ' '} };
+
+
 //**************************************************************************************************
 //declare char2Arr
 void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9] = font1 );
@@ -426,7 +430,7 @@ bool autoConfig()
 	for (int i = 0; i < 10; i++)
 	{
 	   char2Arr('W', 28, 0);
-	   char2Arr('i', 22, 0);
+	   char2Arr('i', 21, 0);
 	   char2Arr('-', 18, 0);
 	   char2Arr('F', 12, 0);
 	   char2Arr('i', 6, 0);
@@ -486,7 +490,7 @@ void smartConfig()
 		  clear_Display();
 		  char2Arr('O', 25, 0);
 		  char2Arr('K', 19, 0);
-		  char2Arr('!', 12, 0);	
+		  char2Arr('!', 12, 0);
 		  char2Arr('!', 6, 0);
 		  refresh_display(); 
 		  Serial.println("SmartConfig Success");
@@ -671,10 +675,10 @@ void rtc_set(tm* tt) {
 	rtc_year((unsigned char) tt->tm_year - 100);
 	if (tt->tm_wday == 0)
 	{
-	  rtc_weekday(7);
+		rtc_weekday(7);
 	}
 	else
-	rtc_weekday((unsigned char) tt->tm_wday);
+		rtc_weekday((unsigned char) tt->tm_wday);
 }
 //**************************************************************************************************
 float rtc_temp() {
@@ -739,7 +743,8 @@ void rtc2mez() {
 }
 
 //*************************************************************************************************
-const unsigned short InitArr[7][2] = { { 0x0C, 0x00 },			// display off
+const unsigned short InitArr[7][2] = {	
+		{ 0x0C, 0x00 },			// display off
 		{ 0x00, 0xFF },			// no LEDtest
 		{ 0x09, 0x00 },			// BCD off
 		{ 0x0F, 0x00 },			// normal operation
@@ -905,9 +910,13 @@ void timer50ms() {
 		cnt50ms = 0;
 	}
 }
+
+
+
 //**************************************************************************************************
-//
-//The setup function is called once at startup of the sketch
+// # Main Functions 主函数
+
+// ## The setup function is called once at startup of the sketch
 void setup() 
 {
 // Add your initialization code here
@@ -938,8 +947,7 @@ void setup()
 }
 
 //**************************************************************************************************
-// The loop function is called in an endless loop
-// 主循环
+// ## The loop function is called in an endless loop
 void loop() {
 	unsigned int sec_ones = 0, sec_tens = 0, min_ones = 0, min_tens = 0, hr_ones = 0, hr_tens = 0;
 	unsigned int sec_ones_old = 0, sec_ones_now = 0, sec_tens_old = 0, sec_tens_now = 0;
