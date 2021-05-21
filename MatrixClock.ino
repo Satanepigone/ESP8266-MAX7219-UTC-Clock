@@ -1,4 +1,4 @@
-/* MatrixClock V3.2
+/* MatrixClock V3.2.a
  original from https:			//github.com/schreibfaul1/ESP8266-LED-Matrix-Clock
  small changes by Nicu FLORICA (niq_ro) from https:			//github.com/tehniq3/
  and Bogdan ARGATU
@@ -10,7 +10,7 @@ catode - D3  , anode to 3.3v with a 1k resistor
 */
 /* 
 	for disable scrolling calendar, search for "scroll switch", and change true to false.
-	for adjust LED brightness, search for “max7219_set_brightness(1)”，chagne 1 to integer between 0~15, 0 for darkest, 15 for brightest.
+	for adjust LED brightness, search for “max7219_set_brightness(0)”，chagne 0 to integer between 0~15, 0 for darkest, 15 for brightest.
 */
 
 //include ----------------------------------------
@@ -396,9 +396,21 @@ char WD_arr[7][4] = {
 
 
 //**************************************************************************************************
-//declare char2Arr
+//sub-functions declare
+bool autoConfig();
+void smartConfig();
+tm* connectNTP();
+void rtc_init(unsigned char sda, unsigned char scl);
+void rtc2mez();
+void max7219_init();
+void max7219_set_brightness(unsigned short br);
+void helpArr_init(void);
+void clear_Display();
+void rotate_90();
+void refresh_display();
 void char2Arr(unsigned short ch, int PosX, short PosY, unsigned short const typeface[96][9] = font1 );
 void char22Arr(unsigned short ch, int PosX, short PosY);
+void timer50ms();
 //**************************************************************************************************
 // Wi-Fi Config 自动配网
 bool autoConfig()
@@ -408,7 +420,7 @@ bool autoConfig()
 	for (int i = 0; i < 10; i++)
 	{
 		char2Arr('W', 28, 0);
-		char2Arr('i', 21, 0);
+		char2Arr('i', 22, 0);
 		char2Arr('-', 18, 0);
 		char2Arr('F', 12, 0);
 		char2Arr('i', 6, 0);
@@ -948,9 +960,9 @@ void loop()
 			if (sc1 == 1) 
 			{
 				if (updown == 1)
-				{y--;}
+					{y--;}
 				else
-				{y++;}
+					{y++;}
 				y3 = y;
 				if (y3 > 0) 
 				{
@@ -982,7 +994,7 @@ void loop()
 				char2Arr(48 + min_ones_now, t_PosX - 18, y);
 				char2Arr(48 + min_ones_old, t_PosX - 18, y + y1);
 				if (y == 0)
-					sc3 = 0;
+					{sc3 = 0;}
 			}
 			else
 				char2Arr(48 + min_ones, t_PosX - 18, 0);
@@ -1005,19 +1017,20 @@ void loop()
 				char2Arr(48 + hr_ones_now, t_PosX - 4, y);
 				char2Arr(48 + hr_ones_old, t_PosX - 4, y + y1);
 				if (y == 0)
-				{sc5 = 0;}
+					{sc5 = 0;}
 			}
 			else
-			{char2Arr(48 + hr_ones, t_PosX - 4, 0);}
+				{char2Arr(48 + hr_ones, t_PosX - 4, 0);}
 
-			if (sc6 == 1) {
+			if (sc6 == 1) 
+			{
 				char2Arr(48 + hr_tens_now, t_PosX + 1, y);
 				char2Arr(48 + hr_tens_old, t_PosX + 1, y + y1);
 				if (y == 0)
-				{sc6 = 0;}
+					{sc6 = 0;}
 			}
 			else
-			{char2Arr(48 + hr_tens, t_PosX + 1, 0);}
+				{char2Arr(48 + hr_tens, t_PosX + 1, 0);}
 
 			char2Arr(' ', d_PosX+5, 0); 
 			
