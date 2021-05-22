@@ -956,7 +956,7 @@ void setup()
 	
 	if(sync_at_boot)
 	{
-		syncRTC2NTP()
+		syncRTC2NTP();
 	}
 }
 
