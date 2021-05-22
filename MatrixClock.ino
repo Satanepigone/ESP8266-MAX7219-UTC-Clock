@@ -1,4 +1,4 @@
-/* MatrixClock V3.2.a
+/* MatrixClock V3.3
  original from https:			//github.com/schreibfaul1/ESP8266-LED-Matrix-Clock
  small changes by Nicu FLORICA (niq_ro) from https:			//github.com/tehniq3/
  and Bogdan ARGATU
