@@ -33,7 +33,7 @@ RTC_DS3231 rtc;
 
 
 // # Custom Settings 自定义设置
-bool sync_at_boot = false			//sync time when boot, 开机时自动校时
+bool sync_at_boot = false;		//sync time when boot, 开机时自动校时
 char ssid[] = "";			// your Wi-FiSSID (name)
 char pass[] = "";			// your Wi-Fi password
 unsigned short brightness_level = 0;			//adjust LED brightness, 0~15, 0 for darkest, 15 for brightest.
