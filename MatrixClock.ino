@@ -1,4 +1,4 @@
-/* MatrixClock V3.3.a
+/* MatrixClock V3.3.b
  original from https:			//github.com/schreibfaul1/ESP8266-LED-Matrix-Clock
  small changes by Nicu FLORICA (niq_ro) from https:			//github.com/tehniq3/
  and Bogdan ARGATU
@@ -38,7 +38,7 @@ char ssid[] = "";			// your Wi-FiSSID (name)
 char pass[] = "";			// your Wi-Fi password
 unsigned short brightness_level = 0;			//adjust LED brightness, 0~15, 0 for darkest, 15 for brightest.
 bool calender_scroll = false;			//scrolling calendar 滚动日历
-bool vertical_scroll = true;			//vertically scroll time digit to refresh
+bool vertical_scroll_switch = true;			//vertically scroll time digit to refresh
 bool vertical_scroll_updown = true;			//vertical scroll direction: true = up-2-down; false = down-2-up
 
 /****************************************/
@@ -994,6 +994,12 @@ void loop()
 		//if ( MEZ.sec_whole==3 )			//DEBUG syncronisize RTC every minute
 		{
 			clear_Display();
+			/*Internet Config*/
+			if (!autoConfig())
+			{
+				smartConfig();
+			}
+			clear_Display();
 			char2Arr('S', 6, 0);
 			char2Arr('y', 12, 0);
 			char2Arr('n', 18, 0);
@@ -1022,8 +1028,10 @@ void loop()
 			//clear_Display();
 		}
 		
-		if (f_tckr1s == true)			// flag 1sec
+		if (f_tckr50ms == true)			//flag 50ms
 		{
+			f_tckr50ms = false;
+			
 			rtc2mez();
 			sec_ones = MEZ.sec_ones;
 			sec_tens = MEZ.sec_tens;
@@ -1031,61 +1039,52 @@ void loop()
 			min_tens = MEZ.min_tens;
 			hr_ones = MEZ.hr_ones;
 			hr_tens = MEZ.hr_tens;
-			y = y2;			//scroll updown
-			sc1 = 1;
-			sec_ones++;
-			if (sec_ones == 10) {
+			
+			if (sec_ones != sec_ones_now)		//use sec change as 1s tick flag instead of ESP8266 internal clock
+			{
+				y = y2;			//scroll updown
+				sc1 = 1;
+				sec_ones_old = sec_ones_now;
+				sec_ones_now = sec_ones;
+				if (MEZ.sec_whole == 45)		//scrolling calender at 45s
+				{
+					f_scroll_x = calender_scroll;			//scroll switch
+				}
+			}
+			if (sec_tens != sec_tens_now)
+			{
 				sc2 = 1;
-				sec_tens++;
-				sec_ones = 0;
+				sec_tens_old = sec_tens_now;
+				sec_tens_now = sec_tens;
 			}
-			if (sec_tens == 6) {
-				min_ones++;
-				sec_tens = 0;
+			if (min_ones != min_ones_now)
+			{
 				sc3 = 1;
+				min_ones_old = min_ones_now;
+				min_ones_now = min_ones;
 			}
-			if (min_ones == 10) {
-				min_tens++;
-				min_ones = 0;
+			if (min_tens != min_tens_now)
+			{
 				sc4 = 1;
+				min_tens_old = min_tens_now;
+				min_tens_now = min_tens;
 			}
-			if (min_tens == 6) {
-				hr_ones++;
-				min_tens = 0;
+			if (hr_ones != hr_ones_now)
+			{
 				sc5 = 1;
+				hr_ones_old = hr_ones_now;
+				hr_ones_now = hr_ones;
 			}
-			if (hr_ones == 10) {
-				hr_tens++;
-				hr_ones = 0;
+			if (hr_tens != hr_tens_now)
+			{
 				sc6 = 1;
-			}
-			if ((hr_tens == 2) && (hr_ones == 4)) {
-				hr_ones = 0;
-				hr_tens = 0;
-				sc6 = 1;
+				hr_tens_old = hr_tens_now;
+				hr_tens_now = hr_tens;
 			}
 
-			sec_ones_old = sec_ones_now;
-			sec_ones_now = sec_ones;
-			sec_tens_old = sec_tens_now;
-			sec_tens_now = sec_tens;
-			min_ones_old = min_ones_now;
-			min_ones_now = min_ones;
-			min_tens_old = min_tens_now;
-			min_tens_now = min_tens;
-			hr_ones_old = hr_ones_now;
-			hr_ones_now = hr_ones;
-			hr_tens_old = hr_tens_now;
-			hr_tens_now = hr_tens;
-			f_tckr1s = false;
-			if (MEZ.sec_whole == 45)		//scrolling calender at 45s
-				f_scroll_x = calender_scroll;			//scroll switch
-		}			// end 1s
-		if (f_tckr50ms == true) 
-		{
-			f_tckr50ms = false;
-			
+
 			//每50ms（即每次刷新前）清空LEDarr防鬼影
+			//clear LEDarr before filling data
 			for (unsigned int i = 0; i < anzMAX; i ++)
 			{
 				for (unsigned short j = 0; j < 8; j ++)
@@ -1107,84 +1106,83 @@ void loop()
 				}
 			}
 			
+
 			//controll vertical scroll/refresh
-			if(vertical_scroll)
+			if (sc1 == 1 && vertical_scroll_switch) 
 			{
-				if (sc1 == 1) 
-				{
-					if (vertical_scroll_updown == 1)
-						{y--;}
-					else
-						{y++;}
-					y3 = y;
-					if (y3 > 0) 
-					{
-						y3 = 0;
-					}     //	...seems y3 always <= 0
-					char2Arr(48 + sec_ones_now, t_PosX + 30, y3, FONT_S);
-					char2Arr(48 + sec_ones_old, t_PosX + 30, y + y1, FONT_S);
-					if (y == 0) 
-					{
-						sc1 = 0;
-						f_scrollend_y = true;
-					}
-				}
+				if (vertical_scroll_updown == 1)
+					{y--;}
 				else
-					char2Arr(48 + sec_ones, t_PosX + 30, 0, FONT_S);
-
-				if (sc2 == 1) 
+					{y++;}
+				y3 = y;
+				if (y3 > 0) 
 				{
-					char2Arr(48 + sec_tens_now, t_PosX + 26, y3, FONT_S);
-					char2Arr(48 + sec_tens_old, t_PosX + 26, y + y1, FONT_S);
-					if (y == 0)
-						sc2 = 0;
-				}
-				else
-				  char2Arr(48 + sec_tens, t_PosX + 26, 0, FONT_S);
-
-				if (sc3 == 1) 
+					y3 = 0;
+				}     //	...seems y3 always <= 0
+				char2Arr(48 + sec_ones_now, t_PosX + 30, y3, FONT_S);
+				char2Arr(48 + sec_ones_old, t_PosX + 30, y + y1, FONT_S);
+				if (y == 0) 
 				{
-					char2Arr(48 + min_ones_now, t_PosX + 20, y);
-					char2Arr(48 + min_ones_old, t_PosX + 20, y + y1);
-					if (y == 0)
-						{sc3 = 0;}
+					sc1 = 0;
+					f_scrollend_y = true;
 				}
-				else
-					char2Arr(48 + min_ones, t_PosX + 20, 0);
-
-				if (sc4 == 1) 
-				{
-					char2Arr(48 + min_tens_now, t_PosX + 15, y);
-					char2Arr(48 + min_tens_old, t_PosX + 15, y + y1);
-					if (y == 0)
-						sc4 = 0;
-				}
-				else
-				{
-					char2Arr(48 + min_tens, t_PosX + 15, 0);
-				}
-				char2Arr(':', t_PosX + 12, 0);
-				
-				if (sc5 == 1) 
-				{
-					char2Arr(48 + hr_ones_now, t_PosX + 6, y);
-					char2Arr(48 + hr_ones_old, t_PosX + 6, y + y1);
-					if (y == 0)
-						{sc5 = 0;}
-				}
-				else
-					{char2Arr(48 + hr_ones, t_PosX + 6, 0);}
-
-				if (sc6 == 1) 
-				{
-					char2Arr(48 + hr_tens_now, t_PosX + 1, y);
-					char2Arr(48 + hr_tens_old, t_PosX + 1, y + y1);
-					if (y == 0)
-						{sc6 = 0;}
-				}
-				else
-					{char2Arr(48 + hr_tens, t_PosX + 1, 0);}
 			}
+			else
+				char2Arr(48 + sec_ones, t_PosX + 30, 0, FONT_S);
+
+			if (sc2 == 1 && vertical_scroll_switch) 
+			{
+				char2Arr(48 + sec_tens_now, t_PosX + 26, y3, FONT_S);
+				char2Arr(48 + sec_tens_old, t_PosX + 26, y + y1, FONT_S);
+				if (y == 0)
+					sc2 = 0;
+			}
+			else
+			  char2Arr(48 + sec_tens, t_PosX + 26, 0, FONT_S);
+
+			if (sc3 == 1 && vertical_scroll_switch) 
+			{
+				char2Arr(48 + min_ones_now, t_PosX + 20, y);
+				char2Arr(48 + min_ones_old, t_PosX + 20, y + y1);
+				if (y == 0)
+					{sc3 = 0;}
+			}
+			else
+				char2Arr(48 + min_ones, t_PosX + 20, 0);
+
+			if (sc4 == 1 && vertical_scroll_switch) 
+			{
+				char2Arr(48 + min_tens_now, t_PosX + 15, y);
+				char2Arr(48 + min_tens_old, t_PosX + 15, y + y1);
+				if (y == 0)
+					sc4 = 0;
+			}
+			else
+			{
+				char2Arr(48 + min_tens, t_PosX + 15, 0);
+			}
+			char2Arr(':', t_PosX + 12, 0);
+			
+			if (sc5 == 1 && vertical_scroll_switch) 
+			{
+				char2Arr(48 + hr_ones_now, t_PosX + 6, y);
+				char2Arr(48 + hr_ones_old, t_PosX + 6, y + y1);
+				if (y == 0)
+					{sc5 = 0;}
+			}
+			else
+				{char2Arr(48 + hr_ones, t_PosX + 6, 0);}
+
+			if (sc6 == 1 && vertical_scroll_switch) 
+			{
+				char2Arr(48 + hr_tens_now, t_PosX + 1, y);
+				char2Arr(48 + hr_tens_old, t_PosX + 1, y + y1);
+				if (y == 0)
+					{sc6 = 0;}
+			}
+			else
+				{char2Arr(48 + hr_tens, t_PosX + 1, 0);}
+			
 
 
 			char2Arr(M_arr[MEZ.mon_whole - 1][0], d_PosX + 1, 0);			//month
